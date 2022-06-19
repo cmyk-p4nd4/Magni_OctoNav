@@ -1,0 +1,4 @@
+
+
+# ignore ros bag files
+bagfiles/
