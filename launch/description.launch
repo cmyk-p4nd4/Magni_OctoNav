@@ -1,0 +1,16 @@
+<launch>
+
+  <param name="robot_description" 
+      command="$(find xacro)/xacro --inorder
+        '$(find magni_octonav)/urdf/magni.urdf.xacro' "/>
+
+  <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" >
+    <param name="publish_frequency" value="50"/>
+  </node>
+
+  <!-- Control node -->
+  <rosparam command="load" file="$(find magni_octonav)/config/control.yaml" />
+  <node name="controller_spawner" pkg="controller_manager" type="spawner"
+        args="ubiquity_velocity_controller ubiquity_joint_publisher" />
+
+</launch>

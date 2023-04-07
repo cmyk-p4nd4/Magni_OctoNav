@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<launch>
+  <!-- Keyboard cmd_vel input -->
+  <node pkg="teleop_twist_keyboard" type="teleop_twist_keyboard.py" name="teleop_twist_keyboard" output="screen">
+    <param name="speed" value="0.7" />
+    <param name="turn" value="$(eval pi/6)" />
+    <remap from="cmd_vel" to="/cmd_vel/keyboard" />
+  </node>
+</launch>
