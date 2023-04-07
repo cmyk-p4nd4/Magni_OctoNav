@@ -61,6 +61,14 @@ set(SRC
   src/map_grid_projector.cc
 )
 
+catkin_install_python(PROGRAMS scripts/grid_mapper.py
+				# scripts/message_handler.py
+				# scripts/utils.py
+				# scripts/grid_map.py
+				# scripts/bresenham.py
+				# scripts/rtime_gmapping_node.py
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
 
-add_executable(map_grid_projector src/map_grid_projector_node.cc ${SRC})
-target_link_libraries(map_grid_projector ${catkin_LIBRARIES} ${PCL_LIBRARIES} Boost::headers Boost::system)
+# add_executable(map_grid_projector src/map_grid_projector_node.cc ${SRC})
+# target_link_libraries(map_grid_projector ${catkin_LIBRARIES} ${PCL_LIBRARIES} Boost::headers Boost::system)

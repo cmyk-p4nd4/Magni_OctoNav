@@ -12,24 +12,24 @@
     <!-- <include file="$(find magni_octonav)/launch/octomapping.launch" /> -->
 
 
-    <node name="magni_octonav" pkg="magni_octonav" type="grid_mapper.py" output="screen">
-        <param name="sensor_model_p_occ"        value="0.75"/>
-        <param name="sensor_model_p_free"       value="0.45"/> 
-        <param name="sensor_model_p_prior"      value="0.5"/> 
-        <param name="map_frame"                 value="map"/> 
-        <param name="robot_frame"               value="base_footprint"/> 
-        <param name="map_center_x"              value="-1.0"/> 
-        <param name="map_center_y"              value="-1.0"/> 
-        <param name="map_size_x"                value="32.0"/> 
-        <param name="map_size_y"                value="32.0"/> 
-        <param name="map_resolution"            value="0.05"/> 
-        <param name="map_publish_freq"          value="1.0"/> 
-        <param name="update_movement"           value="0.1"/> <!-- update when moved this much -->
+    <node pkg="magni_octonav" type="grid_mapper.py" name="grid_mapper" output="screen">
+        <param name="sensor_model_p_occ" value="0.75" />
+        <param name="sensor_model_p_free" value="0.45" />
+        <param name="sensor_model_p_prior" value="0.5" />
+        <param name="map_frame" value="map" />
+        <param name="robot_frame" value="base_footprint" />
+        <param name="map_center_x" value="-8.0" />
+        <param name="map_center_y" value="-8.0" />
+        <param name="map_size_x" value="60.0" />
+        <param name="map_size_y" value="60.0" />
+        <param name="map_resolution" value="0.05" />
+        <param name="map_publish_freq" value="1.0" />
+        <param name="update_movement" value="0.05" /> <!-- update when moved this much -->
     </node>
 
 
     <!-- Parse LaserScan -->
-    <include file="$(find magni_octonav)/launch/vlp16_laserscan.launch" />
+    <!-- <include file="$(find magni_octonav)/launch/vlp16_laserscan.launch" /> -->
 
     <!-- Load move_base node -->
     <include file="$(find magni_octonav)/launch/move_base.launch">
