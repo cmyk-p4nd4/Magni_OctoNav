@@ -64,7 +64,6 @@
     <param name="max_acceptable_angle" value="1.0" />
     <param name="downsample_method" value="NONE" />
     <param name="downsample_resolution" value="0.1" />
-    <!-- ICP, GICP, NDT, GICP_OMP, NDT_OMP, FAST_GICP(recommended), or FAST_VGICP -->
     <param name="registration_method" value="FAST_GICP" />
     <param name="reg_num_threads" value="6" />
     <param name="reg_transformation_epsilon" value="0.01"/>
@@ -156,8 +155,8 @@
     <param name="min_stddev_q" value="0.05" />
     <param name="max_stddev_q" value="0.2" />
     <!-- update params -->
-    <param name="graph_update_interval" value="1.0" />
-    <param name="map_cloud_update_interval" value="3" />
+    <param name="graph_update_interval" value="0.5" />
+    <param name="map_cloud_update_interval" value="2" />
     <param name="map_cloud_resolution" value="0.05" />
   </node>
 

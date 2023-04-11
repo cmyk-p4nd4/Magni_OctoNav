@@ -9,10 +9,10 @@
     <include file="$(find magni_octonav)/launch/vlp_graph_slam_sim.launch" />
 
 
-    <!-- <include file="$(find magni_octonav)/launch/octomapping.launch" /> -->
+    <include file="$(find magni_octonav)/launch/octomapping.launch" />
 
 
-    <node pkg="magni_octonav" type="grid_mapper.py" name="grid_mapper" output="screen">
+    <!-- <node pkg="magni_octonav" type="grid_mapper.py" name="grid_mapper" output="screen">
         <param name="sensor_model_p_occ" value="0.75" />
         <param name="sensor_model_p_free" value="0.45" />
         <param name="sensor_model_p_prior" value="0.5" />
@@ -24,12 +24,8 @@
         <param name="map_size_y" value="60.0" />
         <param name="map_resolution" value="0.05" />
         <param name="map_publish_freq" value="1.0" />
-        <param name="update_movement" value="0.05" /> <!-- update when moved this much -->
-    </node>
-
-
-    <!-- Parse LaserScan -->
-    <!-- <include file="$(find magni_octonav)/launch/vlp16_laserscan.launch" /> -->
+        <param name="update_movement" value="0.05" /> 
+    </node> -->
 
     <!-- Load move_base node -->
     <include file="$(find magni_octonav)/launch/move_base.launch">

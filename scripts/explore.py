@@ -21,7 +21,7 @@ newPose = PoseStamped()
 q = Quaternion()
 
 
-class jackal_explore:
+class magni_explore:
     def __init__(self):
         self.costmap = OccupancyGrid()
         self.flagm = 0
@@ -209,27 +209,8 @@ class jackal_explore:
             height = self.grid.info.height
             pnts = self.grid.data
             gpnts = self.costmap.data
-            cnt = 0
-            pic_mat = []
 
-            for x in range(height):
-                pic_x = []
-                for y in range(width):
-                    p = pnts[cnt]
-                    g = gpnts[cnt]
-
-                    if (g > 0):
-                        p = 0
-                    else:
-                        if (p == -1):
-                            p = 50
-                        elif (p == 0):
-                            p = 100
-                        else:
-                            p = 0
-                    pic_x.append(p)
-                    cnt += 1
-                pic_mat.append(pic_x)
+            rospy.loginfo_throttle(5, f"pnt: {len(pnts)}, gpnts: {len(gpnts)}, size: {width * height}")
             self.flagm = 0
 
             # plt.imshow(pic_mat,cmap='gray',origin='lower')
@@ -440,7 +421,7 @@ def findFrontier(mat):
 
 
     frontier_mat = np.array(mat).astype(np.uint8)
-    frontier_mat = cv2.Canny(frontier_mat, 100, 200)
+    frontier_mat = cv2.Canny(frontier_mat, 50, 85)
 # plt.subplot(221)
 # plt.imshow(frontier_mat,cmap='gray',origin='lower')
 
@@ -528,7 +509,7 @@ def find_closest(node, nodes):
 if __name__ == "__main__":
     rospy.init_node('explore')  # make node
     rospy.sleep(1)
-    gc = jackal_explore()
+    gc = magni_explore()
     rospy.sleep(1)
     gc.sendGoal([0.2, 0.2])
     rospy.sleep(0.5)

@@ -12,7 +12,7 @@
 
         <!-- fixed map frame (set to 'map' if SLAM or localization running!) -->
         <param name="frame_id" type="string" value="map" />
-        <param name="base_frame_id" type="string" value="base_footprint" />
+        <param name="base_frame_id" type="string" value="velodyne" />
 
         <param name="height_map" value="false" />
 
@@ -34,7 +34,7 @@
         <param name="occupancy_min_z" value="0.0" />
         <param name="occupancy_max_z" value="1.0" />
 
-        <param name="incremental_2D_projection" value="false" />
+        <param name="incremental_2D_projection" value="true" />
 
 
         <!-- data source to integrate (PointCloud2) -->

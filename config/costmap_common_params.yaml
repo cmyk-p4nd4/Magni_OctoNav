@@ -15,7 +15,7 @@ footprint_padding: 0.01
 obstacles_layer:
   observation_sources: scan points
   scan: {sensor_frame: velodyne, data_type: LaserScan, topic: /scan, marking: true, clearing: true, min_obstacle_height: 0.1, max_obstacle_height: 2.0, obstacle_range: 6.0, raytrace_range: 6.5, expected_update_rate: 0.5, inf_is_valid: true}
-  points: {sensor_frame: velodyne, data_type: PointCloud2, topic: /velodyne_points, marking: true, clearing: true, min_obstacle_height: 0.1, max_obstacle_height: 2.0, obstacle_range: 6.0, raytrace_range: 6.5, expected_update_rate: 0.5}
+  points: {sensor_frame: velodyne, data_type: PointCloud2, topic: /velodyne_points, marking: true, clearing: true, min_obstacle_height: 0.0, max_obstacle_height: 2.0, obstacle_range: 6.0, raytrace_range: 6.5, expected_update_rate: 0.5}
 
 rgbd_obstacle_layer:
   enabled:                  true
@@ -40,7 +40,7 @@ rgbd_obstacle_layer:
     topic: /velodyne_points
     marking: true
     clearing: false
-    min_obstacle_height: 0.3     # default 0, meters
+    min_obstacle_height: 0.1     # default 0, meters
     max_obstacle_height: 2.0     # default 3, meters
     expected_update_rate: 0.2    # default 0, if not updating at this rate at least, remove from buffer
     observation_persistence: 0.0 # default 0, use all measurements taken during now-value, 0=latest

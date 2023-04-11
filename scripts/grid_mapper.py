@@ -33,7 +33,7 @@ class GridMapping:
 
         map_rows = int(map_size_y / map_resolution)
         map_cols = int(map_size_x / map_resolution)
-        self.gridmap = self.sensor_model_l_prior * np.ones((map_rows, map_cols))
+        self.gridmap: np.ndarray = self.sensor_model_l_prior * np.ones((map_rows, map_cols))
 
     def to_xy (self, i, j):
         x = j * self.map_resolution + self.map_center_x
@@ -99,7 +99,7 @@ class GridMapping:
                 err += dx
                 ip += sy
 
-    def update(self, x, y, theta, scan):
+    def update(self, x, y, theta, scan)-> np.ndarray:
         # test by printing robot trajectory
         #i,j = self.to_ij(x,y)
         #self.gridmap[int(i), int(j)] = 100
@@ -123,11 +123,11 @@ class GridMappingROS:
         self.sensor_model_p_prior = rospy.get_param('~sensor_model_p_prior', 0.5)
         self.robot_frame          = rospy.get_param('~robot_frame', 'base_link')
         self.map_frame            = rospy.get_param('~map_frame', 'map')
-        self.map_center_x         = rospy.get_param('~map_center_x', -1.0)
-        self.map_center_y         = rospy.get_param('~map_center_y', -1.0)
+        self.map_center_x         = rospy.get_param('~map_center_x', -16.0)
+        self.map_center_y         = rospy.get_param('~map_center_y', -16.0)
         self.map_size_x           = rospy.get_param('~map_size_x', 32.0)
-        self.map_size_y           = rospy.get_param('~map_size_y', 12.0)
-        self.map_resolution       = rospy.get_param('~map_resolution', 0.1)
+        self.map_size_y           = rospy.get_param('~map_size_y', 32.0)
+        self.map_resolution       = rospy.get_param('~map_resolution', 0.05)
         self.map_publish_freq     = rospy.get_param('~map_publish_freq', 1.0)
         self.update_movement      = rospy.get_param('~update_movement', 0.1)
 
@@ -139,6 +139,8 @@ class GridMappingROS:
         self.map_msg.info.height = int(self.map_size_y / self.map_resolution)
         self.map_msg.info.origin.position.x = self.map_center_x
         self.map_msg.info.origin.position.y = self.map_center_y
+
+        self.publishFirst_flag = False
 
         self.laser_sub = rospy.Subscriber("scan", LaserScan, self.laserscan_callback, queue_size=16)
         self.map_pub = rospy.Publisher('projected_map', OccupancyGrid, queue_size=4)
@@ -156,12 +158,16 @@ class GridMappingROS:
 
     def publish_occupancygrid(self, gridmap, stamp):
         # Convert gridmap to ROS supported data type : int8[]
-        # http://docs.ros.org/en/melodic/api/nav_msgs/html/msg/OccupancyGrid.html
+
         # The map data, in row-major order, starting with (0,0).  Occupancy probabilities are in the range [0,100].  Unknown is -1.
+        unknown_mask = (gridmap == 0.0)  # for setting unknown cells to -1
+        free_mask = (gridmap < p2l(0.2))
+        occ_mask = (gridmap > p2l(0.8))
         gridmap_p = l2p(gridmap)
-        #unknown_mask = (gridmap_p == self.sensor_model_p_prior)  # for setting unknown cells to -1
         gridmap_int8 = (gridmap_p*100).astype(dtype=np.int8)
-        #gridmap_int8[unknown_mask] = -1  # for setting unknown cells to -1
+        gridmap_int8[unknown_mask] = -1  # for setting unknown cells to -1
+        gridmap_int8[free_mask] = 0
+        gridmap_int8[occ_mask] = 100
 
         # Publish map
         self.map_msg.data = gridmap_int8
@@ -179,8 +185,17 @@ class GridMappingROS:
             (x, y, _),(qx, qy, qz, qw) = self.tf_sub.lookupTransform(self.map_frame, self.robot_frame, data.header.stamp)
             theta = self.quarternion_to_yaw(qx, qy, qz, qw)
 
+            if not  self.publishFirst_flag:
+                self.publishFirst_flag = True
+                gridmap = self.gridmapping.update(x, y, theta, data.ranges).flatten() # update map
+                self.prev_robot_x = x
+                self.prev_robot_y = y
+                self.map_last_publish = rospy.Time.now()
+                self.publish_occupancygrid(gridmap, data.header.stamp)
+                return
+
             # check the movement if update is needed
-            if ( (x-self.prev_robot_x)**2 + (y-self.prev_robot_y)**2 >= self.update_movement**2 ):
+            if ((x-self.prev_robot_x)**2 + (y-self.prev_robot_y)**2 >= self.update_movement**2 ):
                 gridmap = self.gridmapping.update(x, y, theta, data.ranges).flatten() # update map
                 self.prev_robot_x = x
                 self.prev_robot_y = y

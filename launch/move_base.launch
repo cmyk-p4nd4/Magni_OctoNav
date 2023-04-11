@@ -17,7 +17,8 @@
     <param name="base_global_planner" value="global_planner/GlobalPlanner" />
     <param name="base_local_planner" value="dwa_local_planner/DWAPlannerROS"/>
 
-    <remap from="odom" to="/odometry/filtered" />
+    <!-- <remap from="odom" to="/odometry/filtered" /> -->
+    <!-- <remap from="odom" to="/ubiquity_velocity_controller/odom" /> -->
     <remap from="cmd_vel" to="/cmd_vel/nav" />
   </node>
 
