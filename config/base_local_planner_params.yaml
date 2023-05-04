@@ -1,18 +1,18 @@
 TrajectoryPlannerROS:
 
   # Robot Configuration Parameters
-  acc_lim_x: 0.8
-  acc_lim_theta:  0.7853981
+  acc_lim_x: 1.0
+  acc_lim_theta:  1.2
 
   max_vel_x: 0.8
-  min_vel_x: -0.2
+  min_vel_x: 0.25
 
-  max_vel_theta: 1.2
-  min_vel_theta: -1.2
-  min_in_place_vel_theta: 0.314
+  max_vel_theta: 3.14
+  min_vel_theta: -3.14
+  min_in_place_vel_theta: 0.45
 
   holonomic_robot: false
-  escape_vel: -0.3
+  escape_vel: -0.5
 
   # Goal Tolerance Parameters
   yaw_goal_tolerance: 3.14
@@ -20,76 +20,99 @@ TrajectoryPlannerROS:
   latch_xy_goal_tolerance: false
 
   # Forward Simulation Parameters
-  sim_time: 1.7
+  sim_time: 3
   sim_granularity: 0.025
   angular_sim_granularity: 0.02
-  vx_samples: 6
-  vy_samples: 0
+  vx_samples: 10
+  vy_samples: 1
   vtheta_samples: 20
-  controller_frequency: 15.0
+  # controller_frequency: 15.0
 
   # Trajectory scoring parameters
   meter_scoring: true # Whether the gdist_scale and pdist_scale parameters should assume that goal_distance and path_distance are expressed in units of meters or cells. Cells are assumed by default (false).
   occdist_scale: 0.05 #The weighting for how much the controller should attempt to avoid obstacles. default 0.01
-  path_distance_bias: 1.2 #0.75  #     The weighting for how much the controller should stay close to the path it was given . default 0.6
-  goal_distance_bias: 0.8 #1.0 #     The weighting for how much the controller should attempt to reach its local goal, also controls speed  default 0.8
+  path_distance_bias: 0.8 #0.75  #     The weighting for how much the controller should stay close to the path it was given . default 0.6
+  goal_distance_bias: 1.2 #1.0 #     The weighting for how much the controller should attempt to reach its local goal, also controls speed  default 0.8
 
-  heading_lookahead: 1  #How far to look ahead in meters when scoring different in-place-rotation trajectories
+  heading_lookahead: 2  #How far to look ahead in meters when scoring different in-place-rotation trajectories
   heading_scoring: true  #Whether to score based on the robot's heading to the path or its distance from the path. default false
-  heading_scoring_timestep: 1   #How far to look ahead in time in seconds along the simulated trajectory when using heading scoring (double, default: 0.8)
-  dwa: true #Whether to use the Dynamic Window Approach (DWA)_ or whether to use Trajectory Rollout
+  heading_scoring_timestep: 2   #How far to look ahead in time in seconds along the simulated trajectory when using heading scoring (double, default: 0.8)
+  dwa: true            #Whether to use the Dynamic Window Approach (DWA) or whether to use Trajectory Rollout
   simple_attractor: false
   publish_cost_grid_pc: true
 
   #Oscillation Prevention Parameters
-  oscillation_reset_dist: 0.1 #How far the robot must travel in meters before oscillation flags are reset (double, default: 0.05)
-  escape_reset_dist: 0.1
-  escape_reset_theta: 0.1
+  oscillation_reset_dist: 0.05 #How far the robot must travel in meters before oscillation flags are reset (double, default: 0.05)
+  escape_reset_dist: 1.0
+  escape_reset_theta: 1.57
 
 DWAPlannerROS:
-  acc_lim_theta: 10.0
-  acc_lim_x: 5.0
+  acc_lim_theta: 2.0
+  acc_lim_x: 1.1
   acc_lim_y: 0.0
 
-  max_vel_theta: 1.57
+  max_vel_theta: 2.0
   min_vel_theta: 0.4
 
   max_vel_x: 1.2
-  min_vel_x: -0.2
-  max_vel_y: 0.1
-  min_vel_y: -0.1
+  min_vel_x: 0.0
+  max_vel_y: 0.0
+  min_vel_y: 0.0
 
-  max_vel_trans: 0.7
+  max_vel_trans: 0.55
   min_vel_trans: 0.1
   
-  theta_stopped_vel: 0.3
-  trans_stopped_vel: 0.3
+  theta_stopped_vel: 0.2
+  trans_stopped_vel: 0.2
 
-  xy_goal_tolerance: 0.1
-  yaw_goal_tolerance: 1.57
+  xy_goal_tolerance: 0.25
+  yaw_goal_tolerance: 0.4
   latch_xy_goal_tolerance: false
 
-  occdist_scale: 0.05
+  occdist_scale: 0.8
 
-  forward_point_distance: 0.5
+  forward_point_distance: 0.325
   path_distance_bias: 32.0
   goal_distance_bias: 24.0
 
   sim_granularity: 0.025
-  sim_time: 2.0
-  angular_sim_granularity: 0.1
+  sim_time: 4
+  angular_sim_granularity: 0.2
   max_scaling_factor: 0.2
   scaling_speed: 0.25
   stop_time_buffer: 0.2
+  publish_cost_grid: true
 
   oscillation_reset_dist: 0.2
-  prune_plan: false
+  prune_plan: true
 
-  twirling_scale: 0.0
-  vx_samples: 6
+  twirling_scale: 0.05
+  vx_samples: 20
   vy_samples: 1
-  vth_samples: 20
+  vth_samples: 40
 
   use_dwa: true
 
-  publish_cost_grid: true
+PoseFollower:
+  max_vel_lin: 1.2
+  max_vel_th: 3.14
+
+  min_vel_lin: 0.1
+  min_vel_th: 0.0
+
+  min_in_place_vel_th: 0.8
+  in_place_trans_vel: 0.6
+  trans_stopped_velocity: 0.01
+  rot_stopped_velocity: 0.01
+
+  tolerance_trans: 0.02
+  tolerance_rot: 0.04
+  tolerance_timeout: 0.5
+
+  samples: 20
+  allow_backwards: true
+  turn_in_place_first: false
+  max_heading_diff_before_moving: 0.17
+
+  k_trans: 2.0
+  k_rot: 2.0

@@ -6,7 +6,7 @@ project(magni_octonav)
 
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-add_compile_options(-O3 -Wall)
+add_compile_options(-O3 -Wall -g)
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
@@ -30,9 +30,11 @@ find_package(catkin REQUIRED COMPONENTS
   
   pcl_ros
   eigen_conversions
+  tf_conversions
   pcl_conversions
   fast_gicp
 
+  hdl_graph_slam
 )
 
 # set (Boost_USE_MULTITHREADED ON)
@@ -40,12 +42,12 @@ find_package(catkin REQUIRED COMPONENTS
 # set (Boost_USE_STATIC_RUNTIME OFF)
 
 ## System dependencies are found with CMake's conventions
-find_package(Boost REQUIRED COMPONENTS system)
+find_package(Boost REQUIRED)
 find_package(PCL REQUIRED)
+find_package(OpenCV REQUIRED)
 find_package(Eigen3 3.3 REQUIRED)
-find_package(OpenGR REQUIRED)
 find_package(OpenMP REQUIRED)
-include_directories(SYSTEM ${PCL_INCLUDE_DIRS} ${Boost_INCLUDE_DIR})
+find_package(OpenGR REQUIRED)
 link_directories(${PCL_LIBRARY_DIRS})
 add_definitions(${PCL_DEFINITIONS})
 
@@ -56,12 +58,15 @@ catkin_package(
 )
 
 include_directories(
+  SYSTEM
   include
   ${PCL_INCLUDE_DIRS}
+  ${Boost_INCLUDE_DIR}
   ${catkin_INCLUDE_DIRS}
   ${OpenGR_INCLUDE_DIR}
   ${Boost_INCLUDE_DIRS}
   ${EIGEN_INCLUDE_DIRS}
+  ${OpenCV_INCLUDE_DIRS}
 )
 
 
@@ -82,7 +87,10 @@ set(SRC
 
 
 add_executable(map_grid_projector src/map_grid_projector_node.cc ${SRC})
-target_link_libraries(map_grid_projector ${catkin_LIBRARIES} ${PCL_LIBRARIES} Boost::headers Boost::system)
+target_link_libraries(map_grid_projector ${catkin_LIBRARIES} ${PCL_LIBRARIES} Boost::headers Boost::system ${OpenCV_LIBS})
+
+add_executable(overlap_4pcs ${OVERLAP_SRC} )
+target_link_libraries(overlap_4pcs ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${Boost_LIBRARIES} Eigen3::Eigen gr::algo gr::utils gr::accel OpenMP::OpenMP_CXX)
 
 catkin_install_python(PROGRAMS 
   scripts/grid_mapper.py
@@ -90,6 +98,3 @@ catkin_install_python(PROGRAMS
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
-
-add_executable(overlap_4pcs ${OVERLAP_SRC} )
-target_link_libraries(overlap_4pcs ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${Boost_LIBRARIES} Eigen3::Eigen gr::algo gr::utils gr::accel OpenMP::OpenMP_CXX)
