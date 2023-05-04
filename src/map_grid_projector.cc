@@ -1,319 +1,283 @@
 // SPDX-License-Identifier: BSD-2-Clause
 
-#include <map_grid_projector.hpp>
-#include <limits>
 #include <algorithm>
+#include <limits>
+#include <map_grid_projector.hpp>
 #include <sstream>
+#include <iomanip>
 
 #include <boost/bind.hpp>
 
+#include <ros/console.h>
+
 #include <geometry_msgs/TransformStamped.h>
 #include <pcl/filters/passthrough.h>
-#include <pcl_ros/transforms.h>
+#include <pcl/point_cloud.h>
+#include <pcl_conversions/pcl_conversions.h>
 
+#include <tf_conversions/tf_eigen.h>
 
-#define quote(x) #x
-
+static const Eigen::IOFormat CommaInitFmt(4, Eigen::DontAlignCols, ", ", ", ", "", "", "[", "]");
 
 MapGridProjector::MapGridProjector(const ros::NodeHandle &nh_,
                                    const ros::NodeHandle &private_nh_)
-    : m_nh(nh_), m_pnh(private_nh_),
-      m_map_point_sub(nullptr), m_laser_sub(nullptr), m_tf_scan_sub(nullptr),
+    : m_nh(nh_), m_pnh(private_nh_), m_map_point_sub(nullptr),
+      m_laser_sub(nullptr), m_tf_scan_sub(nullptr),
 
-      m_mapInit(false),
-      m_log_odd_free(ProbabilityToLogOdds(0.3)),
-      m_log_odd_occ(ProbabilityToLogOdds(0.75)), m_log_odd_prior(0) {
+      m_resolution(0.05), map_topic("/projected_map"), scan_topic("/scan"),
+      initMap(false) {
 
   m_pnh.param<std::string>("world_frame", m_worldFrameId, "map");
   m_pnh.param<std::string>("base_frame", m_sensorFrameId, "velodyne");
-  m_pnh.param<double>("min_scan_range", m_minScanRange, 0.0);
-  m_pnh.param<double>("max_scan_range", m_maxScanRange, 100.0);
-  m_pnh.param<double>("resolution", m_resolution, 0.05);
+  m_pnh.param<std::string>("map_topic", map_topic, map_topic);
+  m_pnh.param<std::string>("scan_topic", scan_topic, scan_topic);
 
-  m_map_point_sub = new message_filters::Subscriber<sensor_msgs::PointCloud2>(m_nh, "cloud_in", 16);
-  m_laser_sub = new message_filters::Subscriber<sensor_msgs::LaserScan>(m_nh, "scan", 16);
-  m_tf_scan_sub = new tf::MessageFilter<sensor_msgs::LaserScan> (*m_laser_sub, tf_listener, m_worldFrameId, 16);
-  m_tf_scan_sub->registerCallback(boost::bind(&MapGridProjector::scan_handler, this, boost::placeholders::_1));
+  double prob_free = 0.3, prob_occ = 0.75;
+  double r = 0.05;
+  m_pnh.param<double>("free_prob", prob_free, prob_free);
+  m_pnh.param<double>("occpuied_prob", prob_occ, prob_occ);
+  m_pnh.param<double>("map_resolution", r, 0.05);
+  m_mapInfo.setResolution(r);
 
-  ROS_INFO("Subscribing Callbacks");
+  m_log_odd_free = ProbabilityToLogOdds(prob_free);
+  m_log_odd_occ = ProbabilityToLogOdds(prob_occ);
 
-  m_map_grid_pub = m_nh.advertise<nav_msgs::OccupancyGrid>("projected_map", 10, true);
+  // subscriber
+  m_map_point_sub.reset(
+      new message_filters::Subscriber<sensor_msgs::PointCloud2>(
+          m_nh, "cloud_in", 16));
+  m_laser_sub.reset(new message_filters::Subscriber<sensor_msgs::LaserScan>(
+      m_nh, scan_topic, 16));
+  m_tf_scan_sub.reset(new tf::MessageFilter<sensor_msgs::LaserScan>(
+      *m_laser_sub, tf_listener, m_worldFrameId, 16));
+  m_tf_scan_sub->registerCallback(boost::bind(&MapGridProjector::scan_handler,
+                                              this, boost::placeholders::_1));
+
+  // publisher
+  m_map_grid_pub = m_nh.advertise<nav_msgs::OccupancyGrid>(map_topic, 10, true);
+
+  m_gridmap_ptr.reset(new nav_msgs::OccupancyGrid());
 }
 
-MapGridProjector::~MapGridProjector() {
-  DELETE_PTR_CHECK(m_tf_scan_sub);
-  DELETE_PTR_CHECK(m_map_point_sub);
-  DELETE_PTR_CHECK(m_laser_sub);
-}
-
-void MapGridProjector::initMap(const sensor_msgs::LaserScan::ConstPtr & scan_msg) {
-
-  this->m_mapInit = true;
-}
-
-void MapGridProjector::scan_handler(const sensor_msgs::LaserScan::ConstPtr & scan_msg) {
+void MapGridProjector::scan_handler(const sensor_msgs::LaserScan::ConstPtr &scan) {
   ROS_DEBUG("Entered Callback!");
 
-  if (!tf_listener.waitForTransform(m_worldFrameId, m_sensorFrameId, scan_msg->header.stamp, ros::Duration(0.5))) {
-    ROS_WARN_STREAM_THROTTLE(2, "Timed out waiting for transform from "
+  if (!tf_listener.waitForTransform(m_worldFrameId, m_sensorFrameId,
+                                    scan->header.stamp, ros::Duration(0.5))) {
+    ROS_WARN_STREAM("Timed out waiting for transform from "
                     << m_worldFrameId << " to " << m_sensorFrameId << " at "
-                    << scan_msg->header.stamp.toSec());
+                    << scan->header.stamp.toSec());
     return;
   }
 
 
   tf::StampedTransform sensorToWorldTf;
   try {
-    tf_listener.lookupTransform(m_worldFrameId, scan_msg->header.frame_id, scan_msg->header.stamp, sensorToWorldTf);
-  } catch (tf::LookupException& ex) {
-    ROS_ERROR_STREAM( "Transform error of sensor data: " << ex.what() << ", quitting callback");
+    tf_listener.lookupTransform(m_worldFrameId, scan->header.frame_id,
+                                scan->header.stamp, sensorToWorldTf);
+  } catch (tf::LookupException &ex) {
+    ROS_ERROR_STREAM("Transform error of sensor data: "
+                     << ex.what() << ", quitting callback");
     return;
   }
 
-  tf::Stamped<tf::Pose> laserPose(tf::Pose(sensorToWorldTf.getRotation(), sensorToWorldTf.getOrigin()), ros::Time::now(), m_worldFrameId);
-  
+  double world_x = sensorToWorldTf.getOrigin().x();
+  double world_y = sensorToWorldTf.getOrigin().y();
+  double world_yaw = this->quaternion_to_yaw(sensorToWorldTf.getRotation());
 
+  std::vector<Eigen::Vector3d> scan_points;
 
-  Eigen::Matrix4f pose;
-  pcl_ros::transformAsMatrix(sensorToWorldTf, pose);
-  Eigen::Matrix3f pose2d;
-  
-
-
-  uint32_t scan_count = scan_msg->ranges.size();
-  std::vector<Eigen::Vector3d> scan_points_;
-  scan_points_.resize(scan_count);
-
-  for (size_t i = 0; i < scan_msg->ranges.size(); i++) {
-
-    double r = scan_msg->ranges.at(i);
-    if (r > scan_msg->range_max || r < scan_msg->range_min) {
+  const double angle_start = scan->angle_min;
+  const double angle_step = scan->angle_increment;
+  const double angle_end = scan->angle_max;
+  for (size_t i = 0; i < scan->ranges.size(); i++) {
+    double R = scan->ranges.at(i);
+    double angle = angle_start + angle_step * i;
+    if (angle >= angle_end) {
+      break;
+    }
+    if (R < scan->range_min || R > scan->range_max) {
       continue;
     }
 
-    double theta = scan_msg->angle_min + i * scan_msg->angle_increment;
+    double world_laser_x = R * std::cos(angle + world_yaw) + world_x;
+    double world_laser_y = R * std::sin(angle + world_yaw) + world_y;
 
-    Eigen::Vector4d point = {r * cos(theta), r * sin(theta), 0, 0};
 
-    // Eigen::Vector4d laser_world = pose * point;
-    
+    // Eigen::Vector3d point = {R * std::cos(angle), R * std::sin(angle), 0.0};
+
+    // Eigen::Vector3d pointToWorld = planar_pose * point;
+    // scan_points.push_back(pointToWorld);
   }
 
+  // this->constructMap(scan_points, translate);
 
-  Eigen::Matrix4f sensorToWorld;
-  pcl_ros::transformAsMatrix(sensorToWorldTf, sensorToWorld);
-
-  ROS_INFO_STREAM_THROTTLE_NAMED(
-      1, "MapGridProjector", std::endl << 
-      sensorToWorld.format(Eigen::IOFormat(5, 0, ", ", "\n", "[", "]")));
-
-  geometry_msgs::TransformStamped geoStamp;
-  
+  // std::transform(m_cell_log_odd.begin<double>(), m_cell_log_odd.end<double>(),
+  //                std::back_inserter(m_gridmap_ptr->data),
+  //                boost::bind(&MapGridProjector::ratioToMap, this, _1));
 
 
-  return;
+
+  // Point origin = m_mapInfo.getLowerBound();
+  // geometry_msgs::Pose pose;
+  // pose.position.x = origin.x;
+  // pose.position.y = origin.y;
+  // pose.orientation.w = 1.0;
+
+  // m_gridmap_ptr->info.resolution = m_mapInfo.getResolution();
+  // m_gridmap_ptr->info.origin = pose;
+  // m_gridmap_ptr->info.width = m_mapInfo.getMapSizeX();
+  // m_gridmap_ptr->info.height = m_mapInfo.getMapSizeY();
+
+  // m_gridmap_ptr->header.frame_id = m_worldFrameId;
+  // m_gridmap_ptr->header.stamp = ros::Time::now();
+
+  // this->m_map_grid_pub.publish(m_gridmap_ptr);
+
+  // // need to clear the vector since we use std::back_inserter during
+  // // construction
+  // m_gridmap_ptr->data.clear();
 }
 
+void MapGridProjector::constructMap(const std::vector<Eigen::Vector3d> &points,
+                                    const Eigen::Translation2d &pose) {
 
-// nav_msgs::OccupancyGrid::Ptr generate(const std::vector<KeyFrameSnapshot::Ptr>& keyframes, double resolution) const {
-//   if(keyframes.empty()) {
-//     std::cerr << "Keyframe is empty!" << std::endl;
-//     return nullptr;
-//   }
+  double curr_min_x = std::min_element(points.cbegin(), points.cend(),
+                                       &MapGridProjector::compare<0>)->x();
+  double curr_max_x = std::max_element(points.cbegin(), points.cend(),
+                                       &MapGridProjector::compare<0>)->x();
+  double curr_min_y = std::min_element(points.cbegin(), points.cend(),
+                                       &MapGridProjector::compare<1>)->y();
+  double curr_max_y = std::max_element(points.cbegin(), points.cend(),
+                                       &MapGridProjector::compare<1>)->y();
 
-//   if (resolution <= 0.05) {
-//     resolution = 0.05;
-//   }
+  /*
+    Data Layout
+    (0, 0)
+    +------------> X (column)
+    |
+    |
+    |
+    |
+    V             x(cellSizeX - 1, cellSizeY - 1)
+    Y (Row)
+  */
 
-//   tf::StampedTransform sensorToWorldTf;
-//   try {
-//     tf_listener.lookupTransform("map", keyframes.back()->cloud->header.frame_id, ros::Time(0), sensorToWorldTf);
-//   } catch (tf::LookupException& ex) {
-//     ROS_ERROR("%s", ex.what());
-//     return nullptr;
-//   }
-//   Eigen::Matrix4f sensorToWorld;
-//   pcl_ros::transformAsMatrix(sensorToWorldTf, sensorToWorld);
+  // map not init-ed
+  // take the first scan as the map
+  if (!initMap) {
+    m_mapInfo.setLowerBound(curr_min_x, curr_min_y);
+    m_mapInfo.setUpperBound(curr_max_x, curr_max_y);
 
+    m_cell_log_odd = cv::Mat::zeros(m_mapInfo.getMapSizeX(),
+                                    m_mapInfo.getMapSizeY(), CV_64F);
 
-//   double minX = std::numeric_limits<double>::infinity();
-//   double maxX = -minX;
-//   double minY = std::numeric_limits<double>::infinity();
-//   double maxY = -minY;
-//   double minZ, maxZ;
+    ROS_INFO("Created Grid Map with %ld X %ld @ %.4f m/pix\r\n",
+             m_mapInfo.getMapSizeX(), m_mapInfo.getMapSizeY(),
+             m_mapInfo.getResolution());
 
-//   pcl::PointCloud<PointT>::Ptr cloud(new pcl::PointCloud<PointT>());
-//   cloud->reserve(keyframes.front()->cloud->size() * keyframes.size());
+    this->initMap = true;
+  } else {
+    auto oldBound = m_mapInfo.getMapBound();
+    Point lBound = m_mapInfo.getLowerBound();
+    Point uBound = m_mapInfo.getUpperBound();
 
-//   for(const auto& keyframe : keyframes) {
-//     Eigen::Matrix4f pose = keyframe->pose.matrix().cast<float>();
-//     for(const auto& src_pt : keyframe->cloud->points) {
-//       PointT dst_pt;
-//       dst_pt.getVector4fMap() = pose * src_pt.getVector4fMap();
-//       dst_pt.intensity = src_pt.intensity;
-//       cloud->push_back(dst_pt);
-//     }
-//   }
+    lBound.x = std::min(lBound.x, curr_min_x);
+    lBound.y = std::min(lBound.y, curr_min_y);
+    m_mapInfo.setLowerBound(lBound); // overwrite
 
-//   pcl::PassThrough<PointT> crop;
-//   crop.setInputCloud(cloud);
-//   crop.setFilterFieldName("z");
-//   crop.setFilterLimits(-0.5, 1.2);
+    uBound.x = std::max(uBound.x, curr_max_x);
+    uBound.y = std::max(uBound.y, curr_max_y);
+    m_mapInfo.setUpperBound(uBound); // overwrite
 
-//   pcl::PointCloud<PointT>::Ptr filtered(new pcl::PointCloud<PointT>());  
-//   crop.filter(*filtered);
+    MapGridInfo::Bound newBound = m_mapInfo.getMapBound();
 
+    long old_lx_map =
+        std::lround(oldBound.front().x / m_mapInfo.getResolution());
+    long old_ly_map =
+        std::lround(oldBound.front().y / m_mapInfo.getResolution());
+    long old_ux_map =
+        std::lround(oldBound.back().x / m_mapInfo.getResolution());
+    long old_uy_map =
+        std::lround(oldBound.back().y / m_mapInfo.getResolution());
 
-//   minX = std::min_element(filtered->begin(), filtered->end(), [](PointT a, PointT b) {return a.x < b.x;})->x;
-//   maxX = std::max_element(filtered->begin(), filtered->end(), [](PointT a, PointT b) {return a.x < b.x;})->x;
+    long new_lx_map =
+        std::lround(newBound.front().x / m_mapInfo.getResolution());
+    long new_ly_map =
+        std::lround(newBound.front().y / m_mapInfo.getResolution());
+    long new_ux_map =
+        std::lround(newBound.back().x / m_mapInfo.getResolution());
+    long new_uy_map =
+        std::lround(newBound.back().y / m_mapInfo.getResolution());
 
-//   minY = std::min_element(filtered->begin(), filtered->end(), [](PointT a, PointT b) {return a.y < b.y;})->y;
-//   maxY = std::max_element(filtered->begin(), filtered->end(), [](PointT a, PointT b) {return a.y < b.y;})->y;
+    // compute integer different for 4 sides
+    long diff_x_pre = std::abs(old_lx_map - new_lx_map);
+    long diff_x_post = std::abs(old_ux_map - new_ux_map);
+    long diff_y_pre = std::abs(old_ly_map - new_ly_map);
+    long diff_y_post = std::abs(old_uy_map - new_uy_map);
 
-//   // [min|max]X and [min|maxY] should have the absolute [min|max] value for the world frame
+    long accu_diff = diff_x_pre + diff_x_post + diff_y_pre + diff_y_post;
 
+    if (accu_diff > 0) {
+      cv::Mat temp;
 
-//   /*
-//     (0, 0)
-//     +------------> X (column)                   
-//     |
-//     |
-//     |
-//     |
-//     V             x(cellSizeX - 1, cellSizeY - 1)
-//     Y (Row)
-//   */
+      cv::copyMakeBorder(this->m_cell_log_odd, temp, diff_y_pre, diff_y_post,
+                        diff_x_pre, diff_x_post, cv::BORDER_CONSTANT,
+                        cv::Scalar(0.0));
+      cv::swap(this->m_cell_log_odd, temp);
 
-//   uint32_t gridWidth = static_cast<uint32_t>(std::fabs(maxX - minX) / resolution) + 1; // column
-//   uint32_t gridHeight = static_cast<uint32_t>(std::fabs(maxY - minY) / resolution) + 1; // Row
-//   // uint32_t cellSizeX = static_cast<uint32_t>(std::fabs(maxX - minX) );
-//   // uint32_t cellSizeY = static_cast<uint32_t>(std::fabs(maxY - minY) );
-//   nav_msgs::MapMetaData meta;
-//   meta.resolution = resolution;
-//   meta.height = gridHeight;
-//   meta.width = gridWidth; 
-//   meta.origin = geometry_msgs::Pose();
-//   ROS_INFO_THROTTLE_NAMED(10, "MapGridGenerator", "Map Size is: %dx%d\r\n", meta.width, meta.height);
-
-//   /* set map origin to bottom left of the world frame such that middle is (0,0) in world
-     
-//     +---------------> X (column)                   
-//     |
-//     |
-//     |       x (0,0)
-//     |
-//     |
-//     V              x ((cellSizeX / 2) - 1, (cellSizeY /2) - 1)
-//     Y (Row)
-//   */
-//   meta.origin.position.x = -0.5 * double(std::fabs(maxX + minX));
-//   meta.origin.position.y = -0.5 * double(std::fabs(maxY + minY));
-
-//   std::vector<float> log_odd_cell;
-//   nav_msgs::OccupancyGridPtr map_grid(new nav_msgs::OccupancyGrid());
-//   map_grid->info = meta;
-
-//   map_grid->data.resize(gridHeight * gridWidth);
-//   log_odd_cell.resize(gridHeight * gridWidth);
-//   std::fill(map_grid->data.begin(), map_grid->data.end(), static_cast<int8_t>(-1));
-//   std::fill(log_odd_cell.begin(), log_odd_cell.end(), 0.0f);
-
-//   auto worldToGrid = [=, &meta](const Eigen::Vector2f & pose) {
-//     int _x = std::lround((pose.x() - meta.origin.position.x) / resolution);
-//     int _y = std::lround((pose.y() - meta.origin.position.y) / resolution);
-//     return Eigen::Vector2i(_x, _y);
-//   };
-
-//   for(const auto& keyframe : keyframes) {
-//     sensor_msgs::LaserScanConstPtr scan_data = keyframe->scan;
-//     float angle_start = scan_data->angle_min;
-//     // get the yaw component from keyframe pose
-//     float theta_keyframe = Eigen::Quaternionf(keyframe->pose.rotation().cast<float>()).z();
-//     Eigen::Vector2f robot_pose = Eigen::Vector2f(keyframe->pose.translation().cast<float>().topRows<2>());
-//     Eigen::Vector2i robot_pose_grid = worldToGrid(robot_pose);
-
-//     for (size_t i = 0; i < scan_data->ranges.size(); i++) {
-//       float R = scan_data->ranges.at(i);
-//       // skip out of bound value
-//       if (R < scan_data->range_min || R > scan_data->range_max) continue;
-
-//       float theta = angle_start + i * scan_data->angle_increment + theta_keyframe;
-//       float lx = scan_data->ranges.at(i) * std::cos(theta);
-//       float ly = scan_data->ranges.at(i) * std::sin(theta);
-
-//       // translate to world frame
-//       // extract (x,y) from keyframe pose and add scan (x,y)
-//       Eigen::Vector2f laser_world = robot_pose + Eigen::Vector2f(lx, ly);
-//       Eigen::Vector2i laser_world_grid = worldToGrid(laser_world);
-
-//       std::vector<Eigen::Vector2i> cells = bresenham_line(robot_pose_grid, laser_world_grid);
-
-//       // std::stringstream ss;
-
-//       // iterate all cells
-//       for (const auto &cell : cells) {
-//         float _log = inverse_sensor_model(cell, laser_world_grid, resolution);
-//         // log odd update
-//         // log_odd_cell.at(cell.x() + map_grid->info.width * cell.y()) += _log;
-//         // ss << boost::format("(%d, %d) ") % cell.x() % cell.y();
-//       }
-//       // ss << std::endl;
-//       // ROS_INFO_STREAM_COND(i % 600 == 0, ss.rdbuf());
-//     }
-//   }
-
-//   // convert ratio cells to map grid
-//   auto ratioToMap = [this](float value) -> int8_t {
-//     // not a recommanded practice
-//     // but it does the work by now
-//     if (std::fabs(value - _log_odd_prior) < 1e-5) {
-//       return static_cast<int8_t>(-1);
-//     }
-//     if (value < this->_log_odd_free) {
-//       return static_cast<int8_t>(0);
-//     }
-//     if (value > this->_log_odd_occ) {
-//       return static_cast<int8_t>(100);
-//     }
-//     return static_cast<int8_t>(this->LogOddsToProbability(value) * 100.f);
-//   };
-
-//   std::transform(log_odd_cell.cbegin(), log_odd_cell.cend(), map_grid->data.begin(), ratioToMap);
-
-//   return map_grid;
-// }
-
-std::vector<Eigen::Vector2i> MapGridProjector::bresenham_line(Eigen::Vector2i p1, Eigen::Vector2i p2) const {
-	std::vector<Eigen::Vector2i> cell_xy;
-	float m = 1.0 * (p2.y() - p1.y()) / (p2.x() - p2.x());
-  bool flag = false;
-  if(m > -1.0 || m < 1.0) {
-    flag = true;
-    // swap two values
-    p1.x() ^= p1.y(); p2.x() ^= p2.y();
-    p1.y() ^= p1.x(); p2.y() ^= p2.x();
-    p1.x() ^= p1.y(); p2.x() ^= p2.y();
-    // recompute slope
-    m = 1.0 * (p2.y() - p1.y()) / (p2.x() - p2.x());
+      ROS_INFO_THROTTLE(1, "Resize Grid Map to %ld X %ld @ %.4f m/pix",
+                        m_mapInfo.getMapSizeX(), m_mapInfo.getMapSizeY(),
+                        m_mapInfo.getResolution());
+    }
   }
 
-  float delta = 0.5 - m;
-  // swap two points since octant 3 - 6
-  if(p1.x() > p2.x()) {
-    p1.x() ^= p2.x() ^= p1.x() ^= p2.x();
-    p1.y() ^= p2.y() ^= p1.y() ^= p2.y();
+  Eigen::Vector2i robot_pose_grid = m_mapInfo.PointToGrid(pose.vector());
+  std::stringstream bigss;
+  for (size_t i = 0; i < points.size(); i++) {
+    Eigen::Vector2d p(points.at(i).x(), points.at(i).y());
+    Eigen::Vector2i laser_world_grid = m_mapInfo.PointToGrid(p);
+    ROS_DEBUG_STREAM_THROTTLE(1, "\r\n" << robot_pose_grid.format(CommaInitFmt) << "\r\n" << laser_world_grid.format(CommaInitFmt));
+
+    std::vector<IntPoint> cell_index = this->raycast(robot_pose_grid, laser_world_grid);
+    bigss << std::setw(4) << std::setfill('0') << i << ":\r\n";
+
+    {
+      std::stringstream ss;
+      for (size_t j = 0; j < cell_index.size(); j++) {
+        ss << '(' << std::setw(4) << cell_index[j].x << ", " << std::setw(4) << cell_index[j].y
+           << "), ";
+        ROS_WARN_COND(cell_index[j].x < 0 || cell_index[j].y < 0, "Scan #%04ld: (%4d, %4d)", i,cell_index[j].x, cell_index[j].y);
+      }
+      ss << "\r\n";
+      bigss << ss.rdbuf();
+    }
+    
+    for (auto cell = cell_index.cbegin(); cell != cell_index.cend() - 1; cell++) {
+      m_cell_log_odd.at<double>(cell->x, cell->y) += m_log_odd_free;
+    }
+    m_cell_log_odd.at<double>(cell_index.back().x, cell_index.back().y) += m_log_odd_occ;
   }
-  while(p1.x() != p2.x()) {
-		if (m > 0 && delta < 0) {
-			++p1.y(); ++delta;
-		} else if (m < 0 && delta > 0) {
-			--p1.y(); --delta;
-		}
-		delta -= m;
-		++p1.x();
-		if (flag) cell_xy.push_back(Eigen::Vector2i(p1.y(), p1.x()));
-		else cell_xy.push_back(p1);
+  ROS_DEBUG_STREAM_ONCE("\r\n" << bigss.rdbuf());
+}
+
+std::vector<IntPoint> MapGridProjector::raycast(const Eigen::Vector2i p1, const Eigen::Vector2i p2) {
+  int x0 = p1.x(), y0 = p1.y();
+  int x1 = p2.x(), y1 = p2.y();
+
+  const int dx =  std::abs(x1-x0), sx = x0 < x1 ? 1 : -1;
+  const int dy = -std::abs(y1-y0), sy = y0 < y1 ? 1 : -1; 
+  int err = dx + dy, e2; /* error value e_xy */
+
+  std::vector<IntPoint> pixels;
+
+  while (!(x0==x1 && y0==y1)) {
+    e2 = err << 1;
+    if (e2 >= dy) { err += dy; x0 += sx; } /* e_xy+e_x > 0 */
+    if (e2 <= dx) { err += dx; y0 += sy; } /* e_xy+e_y < 0 */
+
+    pixels.emplace_back(IntPoint(x0, y0));
   }
 
-  return cell_xy;
+  return pixels;
 }
