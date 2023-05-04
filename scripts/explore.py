@@ -34,11 +34,12 @@ class FrontierExplore(object):
 		self.map_frame = rospy.get_param("~map_frame", "map")
 		self.base_frame = rospy.get_param("~base_frame", "base_link")
 
+		self.cancel_goal_service = rospy.Service(rospy.get_name()+"/cancel_goal", Empty, self.cancel_goal)
+
 		self.tl = tf.TransformListener()
 		self.global_map_sub = rospy.Subscriber(rospy.get_param("~map_topic", "/projected_map"), OccupancyGrid, self.occ_msg_handler, queue_size=1)
 		
 		self.action_client = actionlib.SimpleActionClient("move_base", MoveBaseAction)
-		self.cancel_goal_srv = rospy.Service(rospy.get_name()+ "/cancel_goal", Empty, self.cancel_goal)
 
 		self.goal_done_evt = Event()
 
@@ -83,6 +84,10 @@ class FrontierExplore(object):
 	
 	def process(self, event: TimerEvent | None = None):
 		grid_data = None
+		if not hasattr(self, "grid_data"):
+			rospy.Timer(rospy.Duration(1), callback=self.process, oneshot=True)
+			return
+
 		self.message_lock.acquire(blocking=True)
 		grid_data = self.grid_data.copy()
 		last_origin = self.map_last_origin
@@ -161,10 +166,11 @@ class FrontierExplore(object):
 		                             active_cb=self.active_state_handler, 
 																 feedback_cb=self.action_feedback_handler)
 
-	def cancel_goal(self):
+
+	def cancel_goal(self, req):
 		self.action_client.cancel_goal()
 		return []
-	
+
 	def action_feedback_handler(self, feedback: MoveBaseActionFeedback):
 
 		pass
