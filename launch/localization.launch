@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <launch>
   <!-- EKF node -->
-  <node pkg="robot_localization" type="ekf_localization_node" name="ekf_localization">
+  <node pkg="robot_localization" type="ekf_localization_node" name="ekf_localization" clear_params="true">
     <rosparam command="load" file="$(find magni_octonav)/config/robot_localization.yaml" />
+    <remap from="/cmd_vel" to="/cmd_vel/mux" />
   </node>
 </launch>

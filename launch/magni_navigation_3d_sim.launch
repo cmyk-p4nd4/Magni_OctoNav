@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?> 
+<launch>
+    <param name="/use_sim_time" value="true" />
+
+    <arg name="nav_type" default="static" />
+
+    <include file="$(find magni_octonav)/launch/localization.launch"/>
+
+    <include file="$(find magni_octonav)/launch/vlp_graph_slam_sim.launch" />
+
+    <include file="$(find magni_octonav)/launch/octomapping.launch" />
+
+    <!-- Load move_base node -->
+    <include file="$(find magni_octonav)/launch/move_base.launch">
+        <arg name="move_base_type" value="$(arg nav_type)" />
+    </include>
+
+    <!-- <node pkg="magni_octonav" type="map_grid_projector" name="map_grid_projector_node" output="screen" >
+        <param name="world_frame" value="map" />
+        <param name="base_frame" value="velodyne" />
+
+        <param name="map_topic" value="/projected_map" />
+        <param name="scan_topic" value="/scan" />
+
+        <param name="map_resolution" value="0.05" />
+    </node> -->
+
+    <!-- <include file="$(find cpu_monitor)/launch/cpu_monitor.launch"/> -->
+
+    <!-- launch-prefix="gnome-terminal -\- gdb -ex run -\-args" -->
+    
+</launch>
