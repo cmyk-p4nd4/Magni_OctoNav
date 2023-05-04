@@ -42,6 +42,9 @@ public:
 
   void scan_handler(const sensor_msgs::LaserScan::ConstPtr & scan_msg);
 
+protected:
+  void initMap(const sensor_msgs::LaserScan::ConstPtr & scan_msg);
+
 private:
   inline float ProbabilityToLogOdds(float prob) const {
     return std::log(prob / (1.f - prob));
@@ -88,7 +91,9 @@ private:
 
   ros::Publisher m_map_grid_pub;
 
-  const float m_log_odd_free;
-  const float m_log_odd_occ;
-  const float m_log_odd_prior;
+  double m_log_odd_free;
+  double m_log_odd_occ;
+  double m_log_odd_prior;
+
+  bool m_mapInit;
 };

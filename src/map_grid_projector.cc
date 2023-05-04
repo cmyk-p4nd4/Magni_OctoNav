@@ -20,7 +20,7 @@ MapGridProjector::MapGridProjector(const ros::NodeHandle &nh_,
     : m_nh(nh_), m_pnh(private_nh_),
       m_map_point_sub(nullptr), m_laser_sub(nullptr), m_tf_scan_sub(nullptr),
 
-      
+      m_mapInit(false),
       m_log_odd_free(ProbabilityToLogOdds(0.3)),
       m_log_odd_occ(ProbabilityToLogOdds(0.75)), m_log_odd_prior(0) {
 
@@ -46,15 +46,21 @@ MapGridProjector::~MapGridProjector() {
   DELETE_PTR_CHECK(m_laser_sub);
 }
 
+void MapGridProjector::initMap(const sensor_msgs::LaserScan::ConstPtr & scan_msg) {
+
+  this->m_mapInit = true;
+}
+
 void MapGridProjector::scan_handler(const sensor_msgs::LaserScan::ConstPtr & scan_msg) {
   ROS_DEBUG("Entered Callback!");
 
-  if (!tf_listener.waitForTransform(m_worldFrameId, m_sensorFrameId, scan_msg->header.stamp, ros::Duration(1.5))) {
-    ROS_WARN_STREAM("Timed out waiting for transform from "
+  if (!tf_listener.waitForTransform(m_worldFrameId, m_sensorFrameId, scan_msg->header.stamp, ros::Duration(0.5))) {
+    ROS_WARN_STREAM_THROTTLE(2, "Timed out waiting for transform from "
                     << m_worldFrameId << " to " << m_sensorFrameId << " at "
                     << scan_msg->header.stamp.toSec());
     return;
   }
+
 
   tf::StampedTransform sensorToWorldTf;
   try {
@@ -64,7 +70,9 @@ void MapGridProjector::scan_handler(const sensor_msgs::LaserScan::ConstPtr & sca
     return;
   }
 
-  tf::Pose identity(tf::createIdentityQuaternion(), tf::Vector3(0, 0, 0));
+  tf::Stamped<tf::Pose> laserPose(tf::Pose(sensorToWorldTf.getRotation(), sensorToWorldTf.getOrigin()), ros::Time::now(), m_worldFrameId);
+  
+
 
   Eigen::Matrix4f pose;
   pcl_ros::transformAsMatrix(sensorToWorldTf, pose);
@@ -87,7 +95,7 @@ void MapGridProjector::scan_handler(const sensor_msgs::LaserScan::ConstPtr & sca
 
     Eigen::Vector4d point = {r * cos(theta), r * sin(theta), 0, 0};
 
-    Eigen::Vector4d laser_world = pose * point;
+    // Eigen::Vector4d laser_world = pose * point;
     
   }
 
@@ -101,7 +109,6 @@ void MapGridProjector::scan_handler(const sensor_msgs::LaserScan::ConstPtr & sca
 
   geometry_msgs::TransformStamped geoStamp;
   
-  // pcl_ros::transformPointCloud()
 
 
   return;
