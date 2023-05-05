@@ -69,19 +69,17 @@ include_directories(
   ${OpenCV_INCLUDE_DIRS}
 )
 
-
-set(OVERLAP_SRC
-	# src/merge.cc
-	src/cloud_preprocessor.cc
-	src/gr_align.cc
-	src/option_parser.cc
-	src/plane_detection.cc
-	src/utils.cc
-  src/overlap4pcs.cc
+set(CLOUDMERGE_SRC_DIR src/cloud_merge)
+set(CLOUDMERGE_SRC
+	${CLOUDMERGE_SRC_DIR}/merge.cc
+	${CLOUDMERGE_SRC_DIR}/cloud_preprocessor.cc
+	${CLOUDMERGE_SRC_DIR}/gr_align.cc
+	${CLOUDMERGE_SRC_DIR}/option_parser.cc
+	${CLOUDMERGE_SRC_DIR}/utils.cc
 )
+
 set(SRC
   src/map_grid_projector.cc
-  # src/
 )
 
 
@@ -89,8 +87,9 @@ set(SRC
 add_executable(map_grid_projector src/map_grid_projector_node.cc ${SRC})
 target_link_libraries(map_grid_projector ${catkin_LIBRARIES} ${PCL_LIBRARIES} Boost::headers Boost::system ${OpenCV_LIBS})
 
-add_executable(overlap_4pcs ${OVERLAP_SRC} )
-target_link_libraries(overlap_4pcs ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${Boost_LIBRARIES} Eigen3::Eigen gr::algo gr::utils gr::accel OpenMP::OpenMP_CXX)
+add_executable(cloud_merge ${CLOUDMERGE_SRC})
+target_link_libraries(cloud_merge ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${Boost_LIBRARIES} Eigen3::Eigen gr::algo gr::utils gr::accel OpenMP::OpenMP_CXX)
+target_include_directories(cloud_merge PRIVATE include/cloud_merge)
 
 catkin_install_python(PROGRAMS 
   scripts/grid_mapper.py

@@ -104,7 +104,6 @@
   <exec_depend>teleop_twist_joy</exec_depend>
 
   <!-- Mapping -->
-  <exec_depend>hector_mapping</exec_depend>
   <exec_depend>lego_loam</exec_depend>
 
 
