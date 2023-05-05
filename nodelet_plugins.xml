@@ -1,0 +1,3 @@
+<library path="lib/libcloud_projector_nodelet">
+  <class name="magni_ocotnav/CloudProjectorNodelet" type="magni_ocotnav::CloudProjectorNodelet" base_class_type="nodelet::Nodelet" />
+</library>

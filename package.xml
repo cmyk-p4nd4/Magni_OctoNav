@@ -86,6 +86,9 @@
   <depend>pcl_conversions</depend>
   <depend>fast_gicp</depend>
 
+  <!-- load as a nodelet plugin -->
+  <build_depend>nodelet</build_depend>
+  <exec_depend>nodelet</exec_depend>
 
   <!-- Packages for magni robot -->
   <exec_depend>magni_description</exec_depend>
@@ -110,7 +113,6 @@
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>
-    <!-- Other tools can request additional information be placed here -->
-
+    <nodelet plugin="${prefix}/nodelet_plugins.xml" />
   </export>
 </package>
