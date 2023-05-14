@@ -48,7 +48,6 @@
 #include <boost/chrono.hpp>
 
 #include <pc_utility.hpp>
-#include <mt_plotter.hpp>
 #include <cloud_preprocessor.hpp>
 #include <gr_align.hpp>
 #include "option_parser.h"

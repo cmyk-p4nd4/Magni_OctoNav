@@ -96,8 +96,6 @@
   <exec_depend>magni_gazebo</exec_depend>
   <exec_depend>magni_viz</exec_depend>
 
-  <!--  -->
-
   <!-- Magni control -->
   <exec_depend>robot_state_publisher</exec_depend>
   <exec_depend>controller_manager</exec_depend>
@@ -105,10 +103,6 @@
   <exec_depend>diff_drive_controller</exec_depend>
   <exec_depend>joy</exec_depend>
   <exec_depend>teleop_twist_joy</exec_depend>
-
-  <!-- Mapping -->
-  <exec_depend>lego_loam</exec_depend>
-
 
 
   <!-- The export tag contains other, unspecified, tags -->

@@ -1,3 +1,6 @@
 <library path="lib/libcloud_projector_nodelet">
-  <class name="magni_ocotnav/CloudProjectorNodelet" type="magni_ocotnav::CloudProjectorNodelet" base_class_type="nodelet::Nodelet" />
+  <class name="magni_octonav/CloudProjectorNodelet" type="magni_octonav::CloudProjectorNodelet" base_class_type="nodelet::Nodelet" />
+</library>
+<library path="lib/libfeature_extractor_nodelet">
+  <class name="magni_octonav/FeatureExtractorNodelet" type="magni_octonav::FeatureExtractorNodelet" base_class_type="nodelet::Nodelet" />
 </library>
