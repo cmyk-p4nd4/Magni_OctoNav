@@ -34,7 +34,7 @@ find_package(catkin REQUIRED COMPONENTS
   tf_conversions
   pcl_conversions
   fast_gicp
-
+  
   hdl_graph_slam
 )
 
@@ -51,6 +51,7 @@ add_definitions(${PCL_DEFINITIONS})
 add_message_files(
   FILES
   FloorCoeff.msg
+  PointCloudByte.msg
 )
 
 generate_messages(
@@ -102,12 +103,29 @@ add_executable(cloud_merge ${CLOUDMERGE_SRC})
 target_link_libraries(cloud_merge ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${Boost_LIBRARIES} Eigen3::Eigen gr::algo gr::utils gr::accel OpenMP::OpenMP_CXX)
 target_include_directories(cloud_merge PRIVATE include/cloud_merge)
 
-set(SRC
-  src/map_grid_projector.cc
-)
-
-add_executable(map_grid_projector src/map_grid_projector_node.cc ${SRC})
+# map_grid_projector
+add_executable(map_grid_projector src/map_grid_projector_node.cc src/map_grid_projector.cc)
 target_link_libraries(map_grid_projector ${catkin_LIBRARIES} ${PCL_LIBRARIES} Boost::headers Boost::system ${OpenCV_LIBS})
+
+# pointcloud_compressor
+add_executable(pointcloud_compressor_node src/pointcloud_compressor.cc)
+target_link_libraries(pointcloud_compressor_node ${catkin_LIBRARIES} ${PCL_LIBRARIES})
+add_dependencies(pointcloud_compressor_node ${catkin_EXPORTED_TARGETS} ${PROJECT_NAME}_gencpp)
+
+# octree decompressor
+add_executable(octree_decompress_node src/octree_decompress.cc)
+
+set(CUSTOM_TARGET_FLAGS
+  "-Wall;-Warray-bounds;-g;-ggdb;-O3;-ffast-math;-fPIC;-msse;-msse2;-mssse3;"
+)
+set_target_properties(
+  octree_decompress_node 
+  PROPERTIES 
+  COMPILE_OPTIONS "${CUSTOM_TARGET_FLAGS}"
+  COMPILE_DEFINITIONS "BOOST_ALL_NO_LIB"
+)
+target_link_libraries(octree_decompress_node ${catkin_LIBRARIES} ${PCL_LIBRARIES})
+add_dependencies(octree_decompress_node ${catkin_EXPORTED_TARGETS} ${PROJECT_NAME}_gencpp)
 
 add_library(fast_gicp_warp SHARED
   src/fast_gicp_warp/fast_gicp_warp.cc
