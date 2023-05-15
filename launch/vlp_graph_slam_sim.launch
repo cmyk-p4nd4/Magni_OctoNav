@@ -12,6 +12,7 @@
   <arg name="enable_imu_ori" default="false" />
 
   <arg name="points_topic" default="/velodyne_points" />
+  <arg name="odom_topic" default="/scan_matching_odometry/odom" />
   <arg name="map_frame_id" default="map" />
   <arg name="lidar_odom_frame_id" default="odom" />
 
@@ -20,18 +21,18 @@
   <arg name="robot_odom_frame_id" default="robot_odom" />
 
   <!-- transformation between lidar and base_link -->
-  <!-- <node pkg="tf" type="static_transform_publisher" name="lidar2base_publisher" args="0 0 0.45 0 0 0 base_link velodyne 10" /> -->
+  <!-- <node pkg="tf" type="static_transform_publisher" name="lidar2base_publisher" args="0 0 0.45 0 0 0 base_footprint velodyne 10" /> -->
 
   <!-- in case you use velodyne_driver, comment out the following line -->
-  <node pkg="nodelet" type="nodelet" name="$(arg nodelet_manager)" args="manager" output="screen"/>
+  <node pkg="nodelet" type="nodelet" name="$(arg nodelet_manager)" args="manager" output="screen" clear_params="true"/>
 
-  <node pkg="nodelet" type="nodelet" name="velodyne_laserscan_nodelet" args="load velodyne_laserscan/LaserScanNodelet $(arg nodelet_manager)" >
-    <param name="ring" value="7" />
+  <node pkg="nodelet" type="nodelet" name="velodyne_laserscan_nodelet" args="load velodyne_laserscan/LaserScanNodelet $(arg nodelet_manager)" clear_params="true" >
+    <param name="ring" value="8" />
     <param name="resolution" value="0.00347521311237808987"/>
   </node>
 
   <!-- prefiltering_nodelet -->
-  <node pkg="nodelet" type="nodelet" name="prefiltering_nodelet" args="load hdl_graph_slam/PrefilteringNodelet $(arg nodelet_manager)">
+  <node pkg="nodelet" type="nodelet" name="prefiltering_nodelet" args="load hdl_graph_slam/PrefilteringNodelet $(arg nodelet_manager)" clear_params="true">
     <remap from="/velodyne_points" to="$(arg points_topic)" />
     <!-- in case base_link_frame is blank, mapping will be performed in the lidar frame -->
     <param name="base_link_frame" value="base_footprint" /> <!-- Default value: base_link -->
@@ -51,21 +52,24 @@
   </node>
 
   <!-- scan_matching_odometry_nodelet -->
-  <node pkg="nodelet" type="nodelet" name="scan_matching_odometry_nodelet" args="load hdl_graph_slam/ScanMatchingOdometryNodelet $(arg nodelet_manager)">
+  <node pkg="nodelet" type="nodelet" name="scan_matching_odometry_nodelet" args="load hdl_graph_slam/ScanMatchingOdometryNodelet $(arg nodelet_manager)" clear_params="true">
     <param name="points_topic" value="$(arg points_topic)" />
+    <param name="odom_pub_topic" value="$(arg odom_topic)" />
     <param name="odom_frame_id" value="$(arg lidar_odom_frame_id)" />
     <param name="robot_odom_frame_id" value="$(arg robot_odom_frame_id)" />
     <param name="keyframe_delta_trans" value="0.25" />
     <param name="keyframe_delta_angle" value="0.15" />
     <param name="keyframe_delta_time" value="10000.0" />
-    <param name="transform_thresholding" value="false" />
+    <param name="publish_status" value="false" />
+    <param name="publish_transform" value="false" />  <!-- default true -->
+    <param name="transform_thresholding" value="true" />
     <param name="enable_robot_odometry_init_guess" value="$(arg enable_robot_odometry_init_guess)" />
     <param name="max_acceptable_trans" value="1.0" />
     <param name="max_acceptable_angle" value="1.0" />
     <param name="downsample_method" value="NONE" />
     <param name="downsample_resolution" value="0.1" />
     <param name="registration_method" value="FAST_GICP" />
-    <param name="reg_num_threads" value="6" />
+    <param name="reg_num_threads" value="8" />
     <param name="reg_transformation_epsilon" value="0.01"/>
     <param name="reg_maximum_iterations" value="100"/>
     <param name="reg_max_correspondence_distance" value="1.6"/>
@@ -77,7 +81,7 @@
   </node>
 
   <!-- floor_detection_nodelet -->
-  <node pkg="nodelet" type="nodelet" name="floor_detection_nodelet" args="load hdl_graph_slam/FloorDetectionNodelet $(arg nodelet_manager)" if="$(arg enable_floor_detection)">
+  <node pkg="nodelet" type="nodelet" name="floor_detection_nodelet" args="load hdl_graph_slam/FloorDetectionNodelet $(arg nodelet_manager)" if="$(arg enable_floor_detection)" clear_params="true">
     <param name="points_topic" value="$(arg points_topic)" />
     <param name="tilt_deg" value="-0.0" />
     <param name="sensor_height" value="0" />
@@ -88,8 +92,9 @@
   </node>
 
   <!-- hdl_graph_slam_nodelet -->
-  <node pkg="nodelet" type="nodelet" name="hdl_graph_slam_nodelet" args="load hdl_graph_slam/HdlGraphSlamNodelet $(arg nodelet_manager)">
+  <node pkg="nodelet" type="nodelet" name="hdl_graph_slam_nodelet" args="load hdl_graph_slam/HdlGraphSlamNodelet $(arg nodelet_manager)" clear_params="true">
     <param name="points_topic" value="$(arg points_topic)" />
+    <param name="odom_topic" value="/odometry/filtered" />
     <!-- frame settings -->
     <param name="map_frame_id" value="$(arg map_frame_id)" />
     <param name="odom_frame_id" value="$(arg lidar_odom_frame_id)" />
@@ -102,7 +107,7 @@
     <param name="enable_imu_acceleration" value="$(arg enable_imu_acc)" />
     <param name="enable_imu_orientation" value="$(arg enable_imu_ori)" />
     <!-- keyframe registration params -->
-    <param name="max_keyframes_per_update" value="20" />
+    <param name="max_keyframes_per_update" value="100" />
     <param name="keyframe_delta_trans" value="1.0" />
     <param name="keyframe_delta_angle" value="1.5" />
     <!-- fix first node for optimization stability -->
@@ -142,7 +147,7 @@
     <param name="floor_edge_stddev" value="10.0" />
     <!-- scan matching -->
     <!-- robust kernels: NONE, Cauchy, DCS, Fair, GemanMcClure, Huber, PseudoHuber, Saturated, Tukey, Welsch -->
-    <param name="odometry_edge_robust_kernel" value="NONE" />
+    <param name="odometry_edge_robust_kernel" value="Welsch" />
     <param name="odometry_edge_robust_kernel_size" value="1.0" />
     <param name="loop_closure_edge_robust_kernel" value="Huber" />
     <param name="loop_closure_edge_robust_kernel_size" value="1.0" />
@@ -155,12 +160,12 @@
     <param name="min_stddev_q" value="0.05" />
     <param name="max_stddev_q" value="0.2" />
     <!-- update params -->
-    <param name="graph_update_interval" value="0.5" />
-    <param name="map_cloud_update_interval" value="2" />
+    <param name="graph_update_interval" value="0.2" />
+    <param name="map_cloud_update_interval" value="1" />
     <param name="map_cloud_resolution" value="0.05" />
   </node>
 
-  <node pkg="hdl_graph_slam" type="map2odom_publisher.py" name="map2odom_publisher" />
+  <node pkg="hdl_graph_slam" type="map2odom_publisher.py" name="map2odom_publisher" clear_params="true" />
 
 
 </launch>
