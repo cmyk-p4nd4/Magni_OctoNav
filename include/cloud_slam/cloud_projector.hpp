@@ -22,6 +22,8 @@ namespace magni_octonav {
 
 class CloudProjector {
 public:
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
   CloudProjector(ros::NodeHandle &_nh, ros::NodeHandle &_pnh) {
     init_params(_nh, _pnh);
   }
@@ -128,6 +130,7 @@ private:
 
   double angle_resolution;
   double beam_resolution;
+
 };
 
 }  // namespace magni_octonav

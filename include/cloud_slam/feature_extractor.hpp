@@ -8,6 +8,7 @@
 #include <message_filters/subscriber.h>
 #include <tf/message_filter.h>
 #include <tf/transform_listener.h>
+#include <tf/transform_broadcaster.h>
 
 #include <cloud_slam/cloud_type.hpp>
 
@@ -15,10 +16,14 @@
 
 #include <Eigen/Core>
 
+#include <fast_gicp_warp/fast_gicp_warp.hpp>
+
 namespace magni_octonav {
 
 class FeatureExtractor {
 public:
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
   FeatureExtractor(ros::NodeHandle &_nh, ros::NodeHandle &_pnh) {
     this->init_params(_nh, _pnh);
   }
@@ -44,19 +49,40 @@ private:
   // publishers
   ros::Publisher floor_coeff_pub_;
   ros::Publisher feature_cloud_pub_;
+  ros::Publisher odom_pub_;
 
   // transform listener
   tf::TransformListener tf_listener_;
+  // transform broadcaster
+  tf::TransformBroadcaster odom_broadcaster;
+  tf::TransformBroadcaster keyframe_broadcaster;
 
   // frame ids
   std::string base_frame_id_;
+  std::string odom_frame_id_;
 
-	// cloud dimension info
-  unsigned channel_count_;
-  unsigned laser_count_;
+  // keyframe parameters
+  double keyframe_delta_trans;  // minimum distance between keyframes
+  double keyframe_delta_angle;  //
+  double keyframe_delta_time;   //
 
-  double angle_resolution;
-  double beam_resolution;
+  // registration validation by thresholding
+  bool transform_thresholding;  //
+  double max_acceptable_trans;  //
+  double max_acceptable_angle;
+
+  std::string odom_pub_topic_;
+
+  bool publish_transform;
+
+  ros::Time prev_time;
+  Eigen::Matrix4f prev_trans;                         // previous estimated transform from keyframe
+  Eigen::Matrix4f keyframe_pose;                      // keyframe pose
+  ros::Time keyframe_stamp;                           // keyframe time
+  pcl::PointCloud<pcl::PointXYZ>::ConstPtr keyframe;  // keyframe point cloud
+
+  fast_gicp::FastGICPWarp<pcl::PointXYZ, pcl::PointXYZ>::Ptr matcher_;
+
 };
 
 }  // namespace magni_octonav

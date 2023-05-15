@@ -18,11 +18,23 @@ void FeatureExtractor::init_params(ros::NodeHandle &_nh, ros::NodeHandle &_pnh) 
   this->private_nh = _pnh;
 
   std::string cloud_topic = private_nh.param<std::string>("cloud_topic", "/cloud_projector_nodelet/segmented_cloud");
-  this->angle_resolution = private_nh.param<double>("angle_resolution", 0.00347435014745802414);  // in radian
-  this->beam_resolution = private_nh.param<double>("beam_resolution", 0.03490658503988659154);    // in radian
-  this->channel_count_ = (unsigned)private_nh.param<int>("channel_size", 16);                     // default VLP-16
 
-  this->laser_count_ = static_cast<unsigned>(std::floor(2 * M_PI / this->angle_resolution));
+  odom_frame_id_ = private_nh.param<std::string>("odom_frame_id", "odom");
+  odom_pub_topic_ = private_nh.param<std::string>("odom_pub_topic","odom");
+
+  // The minimum tranlational distance and rotation angle between keyframes.
+  // If this value is zero, frames are always compared with the previous frame
+  keyframe_delta_trans = private_nh.param<double>("keyframe_delta_trans", 0.25);
+  keyframe_delta_angle = private_nh.param<double>("keyframe_delta_angle", 0.15);
+  keyframe_delta_time = private_nh.param<double>("keyframe_delta_time", 1.0);
+
+  // Registration validation by thresholding
+  transform_thresholding = private_nh.param<bool>("transform_thresholding", false);
+  max_acceptable_trans = private_nh.param<double>("max_acceptable_trans", 1.0);
+  max_acceptable_angle = private_nh.param<double>("max_acceptable_angle", 1.0);
+
+  // Whether to publish scan_matching result to tf
+  publish_transform = private_nh.param<bool>("publish_transform", true);
 
   // subscriber
   cloud_sub_ = this->nh.subscribe<sensor_msgs::PointCloud2>(cloud_topic, 1, boost::bind(&FeatureExtractor::cloud_handler, this, _1));
@@ -61,7 +73,11 @@ void FeatureExtractor::cloud_handler(const sensor_msgs::PointCloud2ConstPtr &clo
 	}
 
 
-  
+
+
+
+
+  // publish all data
 
   if (this->floor_coeff_pub_.getNumSubscribers() > 0) {
     magni_octonav::FloorCoeff msg;

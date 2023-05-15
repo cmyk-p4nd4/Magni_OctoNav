@@ -3,14 +3,14 @@
 #ifndef ROS_UTILS_HPP
 #define ROS_UTILS_HPP
 
-#include <Eigen/Dense>
-
 #include <ros/ros.h>
 #include <nav_msgs/Odometry.h>
 #include <geometry_msgs/Pose.h>
 #include <geometry_msgs/TransformStamped.h>
 
-namespace hdl_graph_slam {
+#include <Eigen/Dense>
+
+namespace magni_octonav {
 
 /**
  * @brief convert Eigen::Matrix to geometry_msgs::TransformStamped
@@ -88,6 +88,6 @@ static Eigen::Isometry3d odom2isometry(const nav_msgs::OdometryConstPtr& odom_ms
   return isometry;
 }
 
-}  // namespace hdl_graph_slam
+}  // namespace magni_octonav
 
 #endif  // ROS_UTILS_HPP
